@@ -28,8 +28,8 @@ io.on("connection", (socket) => {
     socket.on("send-location", (data) => {
         console.log("New Location received:", data);
         alerts.push(data);
-        // সব স্টাফকে নতুন এলার্টের তথ্য পাঠানো
-        io.emit("new-emergency", data); 
+        // সব স্টাফকে নতুন লোকেশনের তথ্য পাঠানো
+        io.emit("new-location", data); 
     });
 
     // ২. 'Solved' বাটনের জন্য ইভেন্ট
@@ -45,9 +45,16 @@ io.on("connection", (socket) => {
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
     });
-}); // <--- io.on এর শেষ ব্র্যাকেট এটি
+    
+    // ৪. স্টপ ট্র্যাকিং ইভেন্ট
+    socket.on("stop-tracking", (data) => {
+        console.log("Tracking stopped:", data.sessionId);
+        io.emit("emergency-solved", data.sessionId);
+    });
+});
 
 // সার্ভার লিসেন সবসময় একদম শেষে এবং সব ব্লকের বাইরে থাকবে
-server.listen(3000, () => {
-    console.log("Server running on port 3000");
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
