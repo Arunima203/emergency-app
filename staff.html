@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoVoice - Staff Dashboard</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Header Styling */
+        header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        #alert-badge {
+            background: #e74c3c;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+
+        /* Map Styling */
+        #map {
+            flex-grow: 1;
+            width: 100%;
+        }
+
+        /* Popup Button Styling */
+        .solve-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .solve-btn:hover {
+            background: #219150;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">EcoVoice Staff Panel</div>
+    <div id="alert-badge">Active Alerts: <span id="alertCount">0</span></div>
+</header>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+    // ১. ম্যাপ সেটআপ (Initial View India)
+    const map = L.map('map').setView([22.5726, 88.3639], 12); 
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const socket = io();
+    let alertCount = 0;
+    const markers = {}; // মার্কারগুলো ট্র্যাক করার জন্য
+
+    // ২. নতুন এলার্ট রিসিভ করা
+    socket.on("new-location", (data) => {
+        alertCount++;
+        updateBadge();
+
+        // ম্যাপে মার্কার বসানো
+        const marker = L.marker([data.lat, data.lng]).addTo(map);
+        
+        // ইউনিক আইডি হিসেবে টাইম ব্যবহার করছি
+        const emergencyId = data.time; 
+        markers[emergencyId] = marker;
+
+        // পপআপ কন্টেন্ট
+        const popupContent = `
+            <div style="text-align:center;">
+                <strong style="color:red;">EMERGENCY REPORTED</strong><br>
+                <small>Time: ${data.time}</small><br>
+                <button class="solve-btn" onclick="emitSolve('${emergencyId}')">Mark as Solved</button>
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent).openPopup();
+        
+        // এলার্ট আসলে ম্যাপটি ওই লোকেশনে প্যান করবে
+        map.flyTo([data.lat, data.lng], 15);
+    });
+
+    // ৩. সার্ভারকে জানানো যে সমস্যা সমাধান হয়েছে
+    function emitSolve(id) {
+        socket.emit("solve-emergency", id);
+    }
+
+    // ৪. যখন কোনো এলার্ট সলভ হয়ে যাবে (সবার স্ক্রিনের জন্য)
+    socket.on("emergency-solved", (id) => {
+        if (markers[id]) {
+            map.removeLayer(markers[id]); // ম্যাপ থেকে মার্কার ডিলিট
+            delete markers[id]; // লিস্ট থেকে ডিলিট
+            
+            if (alertCount > 0) {
+                alertCount--;
+                updateBadge();
+            }
+            console.log("Resolved alert:", id);
+        }
+    });
+
+    function updateBadge() {
+        document.getElementById('alertCount').innerText = alertCount;
+    }
+
+    // কানেকশন এরর চেক
+    socket.on("connect_error", () => {
+        console.log("Connection to server failed. Make sure server is running.");
+    });
+</script>
+
+</body>
+</html>

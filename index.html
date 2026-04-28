@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Crisis Info</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { display: flex; justify-content: center; padding-top: 50px; font-family: sans-serif; }
+        .btn { background: red; color: white; padding: 15px 25px; border: none; border-radius: 5px; cursor: pointer; margin: 10px; }
+        .status { margin-top: 20px; padding: 10px; border-radius: 5px; }
+        .tracking { background: #ffcccc; color: red; }
+    </style>
+</head>
+<body>
+    <button class="btn" onclick="startTracking()">Open Crisis Info</button>
+    <a href="staff.html"><button class="btn" style="background: blue;">Go To Staff Dashboard</button></a>
+
+    <div id="status" class="status"></div>
+
+    <script>
+        const socket = io();
+        let watchId = null;
+        let sessionId = null;
+        
+        function startTracking() {
+            if (watchId) {
+                alert("Already tracking! Location is being sent.");
+                return;
+            }
+            
+            sessionId = Date.now().toString();
+            document.getElementById("status").innerHTML = "🔴 LIVE TRACKING ACTIVE<br>Your location is being sent to staff...";
+            document.getElementById("status").className = "status tracking";
+            
+            // Get initial position
+            navigator.geolocation.getCurrentPosition((pos) => {
+                sendLocation(pos.coords.latitude, pos.coords.longitude);
+            }, showError);
+            
+            // Continuous tracking - updates every 3 seconds
+            watchId = navigator.geolocation.watchPosition((pos) => {
+                sendLocation(pos.coords.latitude, pos.coords.longitude);
+            }, showError, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+        }
+        
+        function sendLocation(lat, lng) {
+            const data = {
+                sessionId: sessionId,
+                lat: lat,
+                lng: lng,
+                time: new Date().toLocaleTimeString()
+            };
+            socket.emit('send-location', data);
+        }
+        
+        function showError(error) {
+            alert("Location error: " + error.message);
+        }
+        
+        // Stop tracking when page closes
+        window.onbeforeunload = function() {
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                socket.emit('stop-tracking', { sessionId: sessionId });
+            }
+        };
+    </script>
+    <script>
+        // Listen for staff messages (optional)
+        socket.on('staff-message', (msg) => {
+            alert("Message from staff: " + msg);
+        }); 
+        </script>
+        <script src="script.js"></script>
+</body>
+</html>
